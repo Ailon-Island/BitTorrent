@@ -22,14 +22,13 @@ class Peer:
         self.torrent = None
         self.tracker_host = None
         self.tracker_port = None
-        self.tracker = None
+        self.trackerConnection = None
         self.bitField = {}
+        self.bitFields = {}
         self.server = Server(host, port, self.connected)
         self.peerConnections = {}
 
         self.log(f'[INIT] Peer {self.name} is initialized')
-
-        self.join_network(torrent_file)
 
     def join_network(self, torrent_file):
         if not os.path.exists(torrent_file):
@@ -42,21 +41,73 @@ class Peer:
             self.torrent = torrent
             self.tracker_host = torrent['announce']
             self.tracker_port = torrent['port']
-            file_info = torrent['info']
-            self.bitField = [0] * (file_info['length'] // file_info['piece length'] + 1)
+
+            try:
+                connectRequest = self.make_request("started")
+                self.trackerConnection = Client(self.tracker_host, self.tracker_port)
+                self.trackerConnection.send(connectRequest, recv_fn=self.connect_all)
+            except Exception as e:
+                self.log(f'[ERROR] Failed to connect to tracker: {e}')
+                return
 
         self.log(f'[JOIN] Peer {self.name} has joined the network with host {self.tracker_host} and port {self.tracker_port}')
 
-
-
-
-    def start(self):
+    def download(self, torrent_file):
         pass
 
-    def connect(self, peer_host, peer_port):
+    def connect_all(self, file, connectionSocket):
+        if file['error_code'] != 0:
+            raise Exception(f'Error code {file["error_code"]}: {file["message"]}')
+
+        connectMessage = self.make_message("Bitfield")
+        for peer in file['peers'].values():
+            connection = Client(peer['ip'], peer['port'])
+            connection.send_peer(connectMessage)
+
+    def connect(self, file, connectionSocket):
         pass
 
     def connected(self, file, connectionSocket):
         pass
 
+    def make_request(self, event="started"):
+        request = {
+            'port': self.port,
+            'ip': self.host,
+            'peer_id': f"{self.host}:{self.port}",
+            'event': event,
+        }
 
+        return request
+
+    def make_message(self, type="Bitfield"):
+        message = {
+            'type': type,
+        }
+
+        if type == "Choke":
+            pass
+        elif type == "UnChoke":
+            pass
+        elif type == "Interested":
+            pass
+        elif type == "UnInterested":
+            pass
+        elif type == "Have":
+            pass
+        elif type == "Bitfield":
+            message['length'] = len(self.bitField)
+            message['bitfield'] = self.bitField
+            message['message_id'] = 5
+        elif type == "Request":
+            pass
+        elif type == "Piece":
+            pass
+        elif type == "KeepAlive":
+            pass
+        elif type == "ServerClose":
+            pass
+        else:
+            raise Exception(f'Invalid message type {type}')
+
+        return message

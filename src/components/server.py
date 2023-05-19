@@ -8,6 +8,12 @@ from .rdt_socket import rdt_socket
 
 class Server(threading.Thread):
     def __init__(self, host="", port=7889, recv_fn=None):
+        """
+        A server that listens to a port, receives files from clients, and calls recv_fn when a file is received
+        :param host:
+        :param port:
+        :param recv_fn:
+        """
         self.host = host
         self.port = port
         self.serverSocket = socket(AF_INET, SOCK_STREAM)

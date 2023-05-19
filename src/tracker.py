@@ -39,8 +39,8 @@ class Tracker:
             'peers': self.peers.copy()
         }
 
-        t = request['type']
-        if t == 'started':
+        event = request['event']
+        if event == 'started':
             if request['peer_id'] not in self.peers:
                 self.peers[request['peer_id']] = {}
             self.peers[request['peer_id']]['ip'] = request['ip']
@@ -51,7 +51,7 @@ class Tracker:
 
             self.log(f'Peer {request["peer_id"]} joined the network!')
 
-        elif t == 'completed':
+        elif event == 'completed':
             if request['peer_id'] in self.peers:
                 self.peers.pop(request['peer_id'])
 
@@ -68,11 +68,11 @@ class Tracker:
 
         else:
             response['error_code'] = 1
-            response['message'] = 'Invalid request type!'
+            response['message'] = f'Invalid request event "{event}"!'
             response['num-of-peers'] = None
             response['peers'] = None
 
-            self.log(f'Peer {request["peer_id"]} requested with invalid request type!')
+            self.log(f'Peer {request["peer_id"]} requested with invalid request event "{event}"!')
 
         connectionSocket.send(obj_encode(response))
 
