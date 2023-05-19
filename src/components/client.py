@@ -45,10 +45,10 @@ class Client(threading.Thread):
             rdt.sendBytes(package)
             package_back = rdt.recvBytes()
             file_back = obj_decode(package_back)
-            file = self.recv_fn(file_back, self.connectionSocket)
-
-    def __del__(self):
-        self.connectionSocket.close()
+            file, terminate = self.recv_fn(file_back, self.connectionSocket)
+            if terminate:
+                self.connectionSocket.close()
+                break
 
 
 

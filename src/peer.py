@@ -8,7 +8,7 @@ from utils import *
 
 
 class Peer:
-    def __init__(self, name, torrent_file, folder="", host="", port=7889):
+    def __init__(self, name, folder="", host="", port=7889):
         self.name = name
         self.folder = folder
         self.log_dir = os.path.join(folder, 'log')
@@ -17,6 +17,7 @@ class Peer:
         timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         self.log_file = os.path.join(self.log_dir, f'{name}_{timestamp}.log')
         self.log = lambda msg: self.log_fn(msg, self.log_file)
+        self.on = True
         self.host = host
         self.port = port
         self.torrent = None
@@ -62,9 +63,19 @@ class Peer:
         connectMessage = self.make_message("Bitfield")
         for peer in file['peers'].values():
             connection = Client(peer['ip'], peer['port'])
-            connection.send_and_serve(connectMessage)
+            connection.send_and_serve(connectMessage, recv_fn=self.serve)
 
-    def connect(self, file, connectionSocket):
+    def serve(self, file, connectionSocket):
+        """
+        Serve a peer's message
+        :param file:
+        :param connectionSocket:
+        :return:
+        :file:
+        :stop:
+        """
+        if not self.on:
+            return None, True
         pass
 
     def connected(self, file, connectionSocket):
