@@ -62,7 +62,7 @@ class Peer:
         connectMessage = self.make_message("Bitfield")
         for peer in file['peers'].values():
             connection = Client(peer['ip'], peer['port'])
-            connection.send_peer(connectMessage)
+            connection.send_and_serve(connectMessage)
 
     def connect(self, file, connectionSocket):
         pass

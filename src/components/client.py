@@ -29,9 +29,14 @@ class Client(threading.Thread):
             self.recv_fn(file_back, self.connectionSocket)
         self.connectionSocket.close()
 
-    def send_peer(self, file):
+    def send_and_serve(self, file):
+        """
+        Send a file and serve the server's response
+        :param file:
+        :return:
+        """
         if self.recv_fn is None:
-            raise Exception("recv_fn cannot be None for send_peer!")
+            raise Exception("recv_fn cannot be None for send_and_serve!")
 
         self.connectionSocket.connect((self.host, self.port))
         rdt = rdt_socket(self.connectionSocket)
