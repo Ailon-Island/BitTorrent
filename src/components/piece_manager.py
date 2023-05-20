@@ -21,7 +21,7 @@ class PieceManager:
 
         Each file takes an item in the dict `bitfield`. The key is the file name appended with the md5 hash sum of the
         file, and the value is the bitarray bitfield of the file.
-        
+
         For memory-performance balance, LRU or a certain other strategy is used. Pieces in memory are stored in a
         dictionary `piece_buffer`, while pieces on disk are stored in a folder [base_dir]/.pieces.
 
