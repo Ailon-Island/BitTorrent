@@ -5,7 +5,8 @@ import bitarray
 import hashlib
 import threading
 
-from ..utils import *
+from .utils import *
+from .torrent import *
 
 
 class PieceManager:
