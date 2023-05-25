@@ -4,6 +4,7 @@ import threading
 from socket import *
 
 from components import *
+from .piece_manager import PieceManager
 from utils import *
 
 INIT_STATES = {
