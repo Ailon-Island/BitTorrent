@@ -1,0 +1,11 @@
+{
+    "announce": "10.0.0.1",
+    "port": 7889,
+    "comment": "",
+    "info": {
+        "name": "text.txt",
+        "length": 0,
+        "piece_length": 4096,
+        "pieces": []
+    }
+}

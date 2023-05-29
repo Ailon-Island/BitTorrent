@@ -9,6 +9,8 @@ from utils import *
 
 class Tracker(threading.Thread):
     def __init__(self, name, base_dir="sandbox/tracker/", host="", port=7889):
+        super().__init__()
+
         self.name = name
         self.dir = base_dir
         self.log_lock = threading.Lock()
@@ -25,7 +27,7 @@ class Tracker(threading.Thread):
         log_dir = os.path.join(base_dir, '.logs')
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         log_file = os.path.join(log_dir, f'{name}_{timestamp}.log')
 
         def log(msg):
@@ -98,17 +100,19 @@ class Tracker(threading.Thread):
             response['peers'] = None
 
             self.log(f'Peer {request["peer_id"]} requested with invalid request event "{event}"!')
-
-        connectionSocket.send(obj_encode(response))
+        
+        return response
 
 
 if __name__ == '__main__':
-    import configargparse
+    import argparse
 
-    parser = configargparse.ArgParser()
+    parser = argparse.ArgumentParser(description='Tracker')
     parser.add_argument('-N', '--name', type=str, default='tracker', help='Name of the tracker')
     parser.add_argument('-D', '--dir', type=str, default='sandbox/tracker/', help='Base directory of the tracker')
     parser.add_argument('-H', '--host', type=str, default='', help='Host of the tracker')
     parser.add_argument('-P', '--port', type=int, default=7889, help='Port of the tracker')
-    tracker = Tracker('tracker')
+    args = parser.parse_args()
+
+    tracker = Tracker(args.name, args.dir, args.host, args.port)
     tracker.start()

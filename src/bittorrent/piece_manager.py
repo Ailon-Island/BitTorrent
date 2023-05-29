@@ -6,8 +6,8 @@ import bitarray
 import hashlib
 import threading
 
-from .utils import *
-from .torrent import *
+from utils import *
+from torrent import *
 
 
 class PieceManager:
@@ -66,14 +66,6 @@ class PieceManager:
         if have:
             torrent = Torrent(self.piece_len)
             torrent.make_torrent(file, os.path.join(self.base_dir, file), self.base_dir)
-            with open(os.path.join(self.base_dir, file), 'rb') as f:
-                index = 0
-                while True:
-                    piece = f.read(self.piece_len)
-                    if not piece:
-                        break
-                    self.write_piece(file, index, piece)
-                    index += 1
         else: # not have
             file = torrent.info['name']
 
@@ -85,6 +77,16 @@ class PieceManager:
         self.bitfield[file] = bitarray.bitarray(len(torrent.info['pieces']))
         self.bitfield[file].setall(have)
         self.count[file] = [0] * len(torrent.info['pieces'])
+
+        if have:
+            with open(os.path.join(self.base_dir, file), 'rb') as f:
+                index = 0
+                while True:
+                    piece = f.read(self.piece_len)
+                    if not piece:
+                        break
+                    self.write_piece(file, index, piece)
+                    index += 1
 
     def add_directory(self, directory):
         pass
@@ -122,7 +124,7 @@ class PieceManager:
     
     def archive_file(self, file):
         with open(os.path.join(self.base_dir, file), 'wb') as f:
-            for index in range(self.torrents[file].num_pieces):
+            for index in range(len(self.torrents[file].pieces)):
                 piece = self.read_piece(file, index)
                 f.write(piece)
 

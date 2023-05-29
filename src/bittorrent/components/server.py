@@ -2,7 +2,7 @@ import os
 import threading
 from socket import *
 
-from ..utils import *
+from .utils import *
 from .rdt_socket import rdt_socket
 
 
@@ -14,11 +14,11 @@ class Server(threading.Thread):
         :param port:
         :param recv_fn:
         """
-        self.super().__init__()
+        super().__init__()
 
         self.host = host
         self.port = port
-        self.serverSocket = socket(AF_INET, SOCK_STREAM)
+        self.serverSocket = socket.socket(AF_INET, SOCK_STREAM)
         self.serverSocket.bind((host, self.port))
         self.serverSocket.listen(1)
         self.recv_fn = recv_fn
@@ -32,7 +32,9 @@ class Server(threading.Thread):
             package = rdt.recvBytes()
             file = obj_decode(package)
             if self.recv_fn:
-                self.recv_fn(file, connectionSocket)
+                response = self.recv_fn(file, connectionSocket)
+                package_back = obj_encode(response)
+                rdt.sendBytes(package_back)
 
     def stop(self):
         self.running = False

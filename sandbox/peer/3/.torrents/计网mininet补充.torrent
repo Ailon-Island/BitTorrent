@@ -1,0 +1,11 @@
+{
+    "announce": "10.0.0.1",
+    "port": 7889,
+    "comment": "",
+    "info": {
+        "name": "\u8ba1\u7f51mininet\u8865\u5145.mp4",
+        "length": 0,
+        "piece_length": 4096,
+        "pieces": []
+    }
+}

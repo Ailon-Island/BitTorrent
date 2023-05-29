@@ -5,8 +5,8 @@ import threading
 from socket import *
 
 from components import *
-from .piece_manager import PieceManager
-from .torrent import Torrent
+from piece_manager import PieceManager
+from torrent import Torrent
 from utils import *
 
 INIT_STATES = {
@@ -28,6 +28,8 @@ INIT_STATES = {
 
 class Peer(threading.Thread):
     def __init__(self, name, base_dir="sandbox/peer/1/", host="", port=7889, pieceManager=None):
+        super().__init__()
+
         self.name = name
         self.base_dir = base_dir
         self.log_lock = threading.Lock()
@@ -50,7 +52,7 @@ class Peer(threading.Thread):
         log_dir = os.path.join(base_dir, '.logs')
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         log_file = os.path.join(log_dir, f'{name}_{timestamp}.log')
 
         def log(msg):
@@ -67,33 +69,36 @@ class Peer(threading.Thread):
         self.log(f'[START] Peer {self.name} is running on {self.host}:{self.port}')
 
         while self.running:
+            line = input("Please enter a command: ")
+            cmd, *args = line.split(' ')
             if self.online:
-                line = input("Please enter a command: ")
-                cmd, *args = line.split(' ')
-                if cmd in ['join', 'j']:
-                    self.join_network(args[0])
-                elif cmd in ['leave', 'l']:
+                if cmd in ['leave', 'l']:
                     self.leave_network()
                 elif cmd in ['get', 'g']:
                     self.download(args[0])
                 elif cmd in ['file', 'f']:
                     for file in args:
                         self.pieceManager.add_file(file)
-                elif cmd in ['directory', 'dir']:
-                    for d in args:
-                        self.pieceManager.add_directory(d)
+                # elif cmd in ['directory', 'dir']:
+                #     for d in args:
+                #         self.pieceManager.add_directory(d)
                 elif cmd in ['quit', 'q']:
                     self.quit()
             else:
+                if cmd in ['join', 'j']:
+                    self.join_network(args[0])
+                    continue
+
                 if len(self.peerConnections) == 0:
                     break
 
     def join_network(self, torrent_file):
-        if not os.path.exists(torrent_file):
+        if not os.path.exists(os.path.join(self.base_dir, torrent_file)):
             self.log(f'[ERROR] Torrent file {torrent_file} does not exist')
             return
 
-        torrent = Torrent.read_torrent(torrent_file)
+        torrent = Torrent()
+        torrent.read_torrent(os.path.join(self.base_dir, torrent_file))
 
         self.tracker_host = torrent.announce
         self.tracker_port = torrent.port
@@ -113,8 +118,10 @@ class Peer(threading.Thread):
 
         self.log(f'[JOIN] Peer {self.name} has joined the network with host {self.tracker_host} and port {self.tracker_port}')
 
-        for torrent in self.pieceManager.torrents:
+        for torrent in self.pieceManager.torrents.values():
             torrent.write_torrent(dir=os.path.join(self.base_dir, '.torrents'), announce=self.tracker_host, port=self.tracker_port)
+
+        self.online = True
 
     def leave_network(self):
         if not self.online:
@@ -143,11 +150,12 @@ class Peer(threading.Thread):
         if not self.online:
             self.join_network(torrent_file)
 
-        if not os.path.exists(torrent_file):
+        if not os.path.exists(os.path.join(self.base_dir, torrent_file)):
             self.log(f'[ERROR] Torrent file {torrent_file} does not exist')
             return
 
-        torrent = Torrent.read_torrent(torrent_file)
+        torrent = Torrent()
+        torrent.read_torrent(os.path.join(self.base_dir, torrent_file))
 
         self.pieceManager.add_file(torrent=torrent)
 
@@ -157,6 +165,7 @@ class Peer(threading.Thread):
         if file['error_code'] != 0:
             raise Exception(f'Error code {file["error_code"]}: {file["message"]}')
 
+        self.log(f'[CONNECT] Peer {self.name} is connecting to {file["num-of-peers"]} peers')
         message = self.make_message("Bitfield")
         for peer in file['peers'].values():
             message['ip'] = peer['ip']
@@ -179,6 +188,8 @@ class Peer(threading.Thread):
         :file:
         :stop:
         """
+        self.log(f'[SERVE] Peer {self.name} received message {message["type"]} from {peer_id}')
+
         if not self.online:
             response = self.make_message("ServerClose")
             self.peerConnections.pop(peer_id)
@@ -242,11 +253,14 @@ class Peer(threading.Thread):
         return response, stop
 
     def connected(self, message, connectionSocket):
+        self.log(f'[CONNECTED] Peer {self.name} is connected by {message["peer_id"]}')
         connection = PeerClient(message['peer_id'], message['ip'], message['port'], recv_fn=self.serve, states=INIT_STATES)
         response = self.serve(message, connectionSocket, states=connection.states, new=True)
         connection.set_server(response, socket=connectionSocket)
         connection.start()
         self.peerConnections[message['peer_id']] = connection
+
+        return {}
 
     def make_request(self, event="started"):
         request = {
@@ -306,3 +320,16 @@ class Peer(threading.Thread):
 
         return message
 
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Peer')
+    parser.add_argument('-N', '--name', type=str, default='peer', help='Name of the peer')
+    parser.add_argument('-D', '--dir', type=str, default='.', help='Directory to store files')
+    parser.add_argument('-H', '--host', type=str, default='', help='Host of the peer')
+    parser.add_argument('-P', '--port', type=int, default=0, help='Port of the peer')
+    args = parser.parse_args()
+
+    peer = Peer(args.name, args.dir, args.host, args.port)
+    peer.start()

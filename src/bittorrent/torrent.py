@@ -73,6 +73,9 @@ class Torrent:
         torrent['announce'] = announce or self.announce
         torrent['port'] = port or self.port
         torrent['comment'] = comment or self.comment
+        if os.path.exists(file) and announce is None and port is None and comment is None:
+            print(f'File {file} already exists, please specify a new file name')
+            return
         with open(file, 'w') as f:
             json.dump(torrent, f, indent=4)
     
@@ -81,13 +84,6 @@ class Torrent:
         with open(torrent_file, 'r') as f:
             torrent = json.load(f)
         self.torrent = torrent
-        return torrent
-    
-    @staticmethod
-    # read .torrent file and load json information
-    def read_torrent(torrent_file):
-        torrent = Torrent()
-        return torrent.read_torrent(torrent_file)
     
     def compare_file(self, download_file):
         # torrent_file = self.read_torrent(torrent_file_name)
