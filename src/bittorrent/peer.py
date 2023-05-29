@@ -1,10 +1,12 @@
 import os
 import datetime
+import random
 import threading
 from socket import *
 
 from components import *
 from .piece_manager import PieceManager
+from .torrent import Torrent
 from utils import *
 
 INIT_STATES = {
@@ -45,7 +47,7 @@ class Peer(threading.Thread):
 
     @staticmethod
     def init_log(name, base_dir, lock):
-        log_dir = os.path.join(base_dir, 'log')
+        log_dir = os.path.join(base_dir, '.logs')
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -91,11 +93,10 @@ class Peer(threading.Thread):
             self.log(f'[ERROR] Torrent file {torrent_file} does not exist')
             return
 
-        with open(torrent_file, 'r') as f:
-            torrent = json.load(f)
+        torrent = Torrent.read_torrent(torrent_file)
 
-        self.tracker_host = torrent['announce']
-        self.tracker_port = torrent['port']
+        self.tracker_host = torrent.announce
+        self.tracker_port = torrent.port
 
         try:
             connectRequest = self.make_request("started")
@@ -111,6 +112,9 @@ class Peer(threading.Thread):
             return
 
         self.log(f'[JOIN] Peer {self.name} has joined the network with host {self.tracker_host} and port {self.tracker_port}')
+
+        for torrent in self.pieceManager.torrents:
+            torrent.write_torrent(dir=os.path.join(self.base_dir, '.torrents'), announce=self.tracker_host, port=self.tracker_port)
 
     def leave_network(self):
         if not self.online:
@@ -136,7 +140,18 @@ class Peer(threading.Thread):
         self.running = False
 
     def download(self, torrent_file):
-        pass
+        if not self.online:
+            self.join_network(torrent_file)
+
+        if not os.path.exists(torrent_file):
+            self.log(f'[ERROR] Torrent file {torrent_file} does not exist')
+            return
+
+        torrent = Torrent.read_torrent(torrent_file)
+
+        self.pieceManager.add_file(torrent=torrent)
+
+        self.log(f'[JOIN] Peer {self.name} is downloading {torrent_file.split("/")[-1].split(".")[:-1].join(".")}')
 
     def connect_all(self, file, connectionSocket):
         if file['error_code'] != 0:
@@ -187,7 +202,7 @@ class Peer(threading.Thread):
             pass
         elif type == "Piece":
             if not self.pieceManager.write_piece(message['file'], message['index'], message['piece']):
-                self.drop_request(states['piece_request'])
+                self.pieceManager.require(states['piece_request']['file'], states['piece_request']['index'])
             states['piece_request'] = None
         elif type == "ServerClose":
             self.peerConnections.pop(peer_id)
@@ -208,19 +223,19 @@ class Peer(threading.Thread):
             states['send']['choke'] = False
             response = self.make_message("UnChoke")
         elif type == "Request" and not states['send']['choke'] and states['send']['interested']:
-            piece = self.pieceManager.read(message['file'], message['index'])
+            piece = self.pieceManager.read_piece(message['file'], message['index'])
             response = self.make_message("Piece", file=message['file'], index=message['index'], piece=piece)
         elif not states['recv']['choke'] and states['recv']['interested']:
             if states['piece_request'] is None:
-                self.get_piece_request(states['peer_bitfield'], states['piece_request'])
+                self.pieceManager.get_piece_request(states['peer_bitfield'], states['piece_request'])
             if states['piece_request'] is not None:
                 response = self.make_message("Request", file=states['piece_request']['file'], index=states['piece_request']['index'])
             else:
                 response = self.make_message("UnInterested")
         elif states['recv']['choke'] and not states['recv']['interested']:
             if states['piece_request'] is not None:
-                self.drop_request(states['piece_request'])
-            self.get_piece_request(states['peer_bitfield'], states['piece_request'])
+                self.pieceManager.require(states['piece_request']['file'], states['piece_request']['index'])
+            self.pieceManager.get_piece_request(states['peer_bitfield'], states['piece_request'])
             if states['piece_request'] is not None:
                 response = self.make_message("Interested")
 
@@ -290,19 +305,4 @@ class Peer(threading.Thread):
             raise Exception(f'Invalid message type {type}')
 
         return message
-
-    def get_piece_request(self, peer_bitfield, piece_request):
-        # find the rarest piece for current peer
-        rarest_count = len(self.peerConnections) + 1
-        for file, index in self.pieceManager.required_pieces:
-            if peer_bitfield[file][index] == 1:
-                count = self.pieceManager.count[file][index]
-                if count < rarest_count:
-                    piece_request['file'], piece_request['index'] = file, index
-                    rarest_count = count
-
-        self.pieceManager.require_not(piece_request['file'], piece_request['index'])
-
-    def drop_piece_request(self, piece_request):
-        self.pieceManager.require(piece_request['file'], piece_request['index'])
 

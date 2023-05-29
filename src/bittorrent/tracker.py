@@ -22,7 +22,7 @@ class Tracker(threading.Thread):
 
     @staticmethod
     def init_log(name, base_dir, lock):
-        log_dir = os.path.join(base_dir, 'log')
+        log_dir = os.path.join(base_dir, '.logs')
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -102,3 +102,13 @@ class Tracker(threading.Thread):
         connectionSocket.send(obj_encode(response))
 
 
+if __name__ == '__main__':
+    import configargparse
+
+    parser = configargparse.ArgParser()
+    parser.add_argument('-N', '--name', type=str, default='tracker', help='Name of the tracker')
+    parser.add_argument('-D', '--dir', type=str, default='sandbox/tracker/', help='Base directory of the tracker')
+    parser.add_argument('-H', '--host', type=str, default='', help='Host of the tracker')
+    parser.add_argument('-P', '--port', type=int, default=7889, help='Port of the tracker')
+    tracker = Tracker('tracker')
+    tracker.start()
