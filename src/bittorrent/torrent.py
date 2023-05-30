@@ -68,15 +68,15 @@ class Torrent:
     def write_torrent(self, dir=None, announce=None, port=None, comment=None):
         # record the torrent file information
         dir = dir or os.getcwd()
-        file = os.path.join(dir, self.info['name'].split('.')[-2] + '.torrent')
+        torrent_file = os.path.join(dir, self.info['name'].split('.')[-2] + '.torrent')
         torrent = self.torrent
         torrent['announce'] = announce or self.announce
         torrent['port'] = port or self.port
         torrent['comment'] = comment or self.comment
-        if os.path.exists(file) and announce is None and port is None and comment is None:
-            print(f'File {file} already exists, please specify a new file name')
+        if os.path.exists(torrent_file) and announce is None and port is None and comment is None:
+            print(f'File {torrent_file} already exists, please specify a new file name')
             return
-        with open(file, 'w') as f:
+        with open(torrent_file, 'w') as f:
             json.dump(torrent, f, indent=4)
     
     # read .torrent file and load json information

@@ -23,6 +23,7 @@ class Tracker(threading.Thread):
         self.peers = {}
         self.server = Server(host, port, self.respond)
         self.running = False
+        self.busy = True
         self.log(f'[INIT] Tracker {self.name} is initialized')
 
     def cmd(self, msg):
@@ -60,23 +61,34 @@ class Tracker(threading.Thread):
 
         self.log(f'[START] Tracker {self.name} is running on {self.host}:{self.port}')
 
+        self.busy = False
         while self.running:
+            self.busy = True
+
             try:
                 cmd_line = self.get_cmd()
                 if cmd_line:
                     cmd, *args = cmd_line.split()
                     if cmd in ['quit', 'q']:
                         self.stop()
+                        break
+                    self.busy = False
                 else:
-                    time.sleep(0.1)
+                    self.busy = False
+                    time.sleep(0.01)
             except Exception as e:
                 self.log("[ERROR] Tracker get exception:", type(e).__name__)
+                self.busy = False
 
+        self.cleanup()
+        self.log(f'[STOP] Tracker {self.name} stopped')
+
+    def cleanup(self):
+        self.busy = True
         self.log('[STOP] Stopping server...')
         self.server.stop()
         self.server.join()
         self.log('[STOP] Server stopped')
-        self.log(f'[STOP] Tracker {self.name} stopped')
     
     def respond(self, request, connectionSocket):
         self.log(f'[REQUEST] Received request: {request}')
@@ -109,7 +121,7 @@ class Tracker(threading.Thread):
 
                 self.log(f'Peer {request["peer_id"]} requested to join the network, but it is already in the network!')
 
-        elif event == 'completed':
+        elif event == 'stopped':
             if request['peer_id'] in self.peers:
                 self.peers.pop(request['peer_id'])
 
@@ -147,20 +159,22 @@ if __name__ == '__main__':
 
     tracker = Tracker(args.name, args.dir, args.host, args.port)
     tracker.start()
-    time.sleep(0.1)
 
-    try:
-        while True:
+    while True:
+        try:
             if tracker.running:
-                cmd = input('Please enter command: ')
-                tracker.cmd(cmd)
-                if cmd in ['quit', 'q']:
-                    tracker.join()
-                    break
+                if not tracker.busy:
+                    cmd = input('Please enter command: ')
+                    tracker.cmd(cmd)
+                    time.sleep(0.03)
+                else:
+                    time.sleep(0.1)
+            else:
+                break
             # print(f'[INFO] Tracker stopped: {tracker.stop_flag.is_set()}')
-    except KeyboardInterrupt:
-        print('\n[STOP] Keyboard Interrupt, stopping tracker...')
-        tracker.stop()
-        tracker.join()
+        except KeyboardInterrupt:
+            print('\n[STOP] Keyboard Interrupt, stopping tracker...')
+            tracker.stop()
             
+    tracker.join()
     print('[INFO] Program exited')

@@ -47,6 +47,7 @@ class Peer(threading.Thread):
         self.server = Server(host, port, self.connected)
         self.peerConnections = {}
         self.running = False
+        self.busy = True
 
         self.log(f'[INIT] Peer {self.name} is initialized')
 
@@ -81,12 +82,17 @@ class Peer(threading.Thread):
 
         self.log(f'[START] Peer {self.name} is running on {self.host}:{self.port}')
 
+        self.busy = False
         while self.running:
-            cmd_line = self.get_cmd()
-            if cmd_line:
-                cmd, *args = cmd_line.split(' ')
-                if self.online:
-                    if cmd in ['leave', 'l']:
+            self.busy = True
+
+            try:
+                cmd_line = self.get_cmd()
+                if cmd_line:
+                    cmd, *args = cmd_line.split(' ')
+                    if cmd in ['join', 'j']:
+                        self.join_network(args[0])
+                    elif cmd in ['leave', 'l']:
                         self.leave_network()
                     elif cmd in ['get', 'g']:
                         self.download(args[0])
@@ -97,27 +103,58 @@ class Peer(threading.Thread):
                     #     for d in args:
                     #         self.pieceManager.add_directory(d)
                     elif cmd in ['quit', 'q']:
-                        self.quit()
-                else:
-                    if cmd in ['join', 'j']:
-                        self.join_network(args[0])
-                        continue
-
-                    if len(self.peerConnections) == 0:
+                        if self.online:
+                            self.leave_network()
+                        self.stop()
                         break
-            else:
-                time.sleep(0.1)
 
+                    # if self.online:
+                    #     if cmd in ['leave', 'l']:
+                    #         self.leave_network()
+                    #     elif cmd in ['get', 'g']:
+                    #         self.download(args[0])
+                    #     elif cmd in ['file', 'f']:
+                    #         for file in args:
+                    #             self.pieceManager.add_file(file)
+                    #     # elif cmd in ['directory', 'dir']:
+                    #     #     for d in args:
+                    #     #         self.pieceManager.add_directory(d)
+                    #     elif cmd in ['quit', 'q']:
+                    #         self.leave_network()
+                    #         self.stop()
+                    #         break
+                    # else:
+                    #     if cmd in ['join', 'j']:
+                    #         self.join_network(args[0])
+                    #     elif cmd in ['quit', 'q']:
+                    #         self.stop()
+                    #         break
+                    #     elif not self.running and len(self.peerConnections) == 0:
+                    #         break
+                    self.busy = False
+                else:
+                    self.busy = False
+                    time.sleep(0.01)
+            except Exception as e:
+                self.log("[ERROR] Peer get exception:", type(e).__name__)
+                self.busy = False
+
+        self.cleanup()
+        self.log(f'[STOP] Peer {self.name} stopped')
+
+    def cleanup(self):
+        self.busy = True
         if self.online:
-            self.log('[STOP] Leaving network...')
             self.leave_network()
         self.log('[STOP] Stopping server...')
         self.server.stop()
         self.server.join()
         self.log('[STOP] Server stopped')
-        self.log(f'[STOP] Peer {self.name} stopped')
 
     def join_network(self, torrent_file):
+        if self.online:
+            self.log(f'[WARN] Peer {self.name} is already online, if you want to join another network, please leave first')
+            return
         if not os.path.exists(os.path.join(self.base_dir, torrent_file)):
             self.log(f'[ERROR] Torrent file {torrent_file} does not exist')
             return
@@ -130,10 +167,9 @@ class Peer(threading.Thread):
 
         try:
             connectRequest = self.make_request("started")
-            self.trackerConnection = Client(self.tracker_host, self.tracker_port, recv_fn=self.connect_all)
-            self.trackerConnection.set_file(connectRequest)
+            self.trackerConnection = Client(self.tracker_host, self.tracker_port)
+            self.trackerConnection.send_file(connectRequest, self.connect_all)
             self.trackerConnection.start()
-            self.trackerConnection.join()
             self.online = True
         except Exception as e:
             self.trackerConnection = None
@@ -152,20 +188,25 @@ class Peer(threading.Thread):
         if not self.online:
             self.log(f'[WARN] Peer {self.name} attempted to leave the network, but it has not joined any network yet')
             return
+        self.log(f'[LEAVE] Peer {self.name} is leaving the network...')
+
 
         try:
             connectRequest = self.make_request("stopped")
-            self.trackerConnection.set_file(connectRequest)
-            self.trackerConnection.start()
+            self.trackerConnection.send_file(connectRequest)
+            # self.log(f'[LEAVE] Peer {self.name} is sending a leave request to the tracker')
+            while self.trackerConnection.busy:
+                time.sleep(0.01)
+            self.trackerConnection.stop()
             self.trackerConnection.join()
             self.trackerConnection = None
             self.online = False
         except Exception as e:
-            self.log(f'[ERROR] Failed to connect to tracker: {e}')
+            self.log(f'[ERROR] Failed to communicate with tracker: {type(e).__name__}')
 
         self.log(f'[LEAVE] Peer {self.name} has left the network')
 
-    def quit(self):
+    def stop(self):
         self.running = False
 
     def download(self, torrent_file):
@@ -187,7 +228,7 @@ class Peer(threading.Thread):
         if file['error_code'] != 0:
             raise Exception(f'Error code {file["error_code"]}: {file["message"]}')
 
-        self.log(f'[CONNECT] Peer {self.name} is connecting to {file["num-of-peers"]} peers')
+        self.log(f'[INFO] Peer {self.name} is connecting to {file["num-of-peers"]} peers')
         message = self.make_message("Bitfield")
         for peer in file['peers'].values():
             message['ip'] = peer['ip']
@@ -197,6 +238,7 @@ class Peer(threading.Thread):
             connection.set_server(message)
             connection.start()
             self.peerConnections[peer['peer_id']] = connection
+            self.log(f'[INFO] Peer {self.name} connected to {peer["peer_id"]}')
 
     def serve(self, peer_id, message, connectionSocket, states, new=False):
         """
@@ -275,7 +317,7 @@ class Peer(threading.Thread):
         return response, stop
 
     def connected(self, message, connectionSocket):
-        self.log(f'[CONNECTED] Peer {self.name} is connected by {message["peer_id"]}')
+        self.log(f'[INFO] Peer {self.name} is connected by {message["peer_id"]}')
         connection = PeerClient(message['peer_id'], message['ip'], message['port'], recv_fn=self.serve, states=INIT_STATES)
         response = self.serve(message, connectionSocket, states=connection.states, new=True)
         connection.set_server(response, socket=connectionSocket)
@@ -355,18 +397,25 @@ if __name__ == '__main__':
 
     peer = Peer(args.name, args.dir, args.host, args.port)
     peer.start()
-    time.sleep(0.1)
 
     while True:
         try:
-            line = input("Please enter command: ")
-            peer.cmd(line)
-            if line in ['quit', 'q']:
-                peer.join()
+            if peer.running:
+                if not peer.busy:
+                    line = input("Please enter command: ")
+                    peer.cmd(line)
+                    time.sleep(0.03)
+                else:
+                    time.sleep(0.1)
+            else:
                 break
         except KeyboardInterrupt:
             print('\n[INFO] Keyboard Interrupt')
-            peer.quit()
-            peer.join()
+            peer.stop()
             break
+
+    print('[INFO] Waiting for program to exit')
+    peer.join()
+    print('[INFO] Program exited')
+
 

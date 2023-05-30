@@ -1,4 +1,5 @@
 import os
+import time
 import threading
 from socket import *
 
@@ -17,24 +18,43 @@ class Client(threading.Thread):
 
         self.host = host
         self.port = port
-        self.connectionSocket = socket.socket(AF_INET, SOCK_STREAM)
-        self.recv_fn = recv_fn
-        self.file = None
+        self.files = []
+        self.running = False
 
-    def set_file(self, file):
-        self.file = file
+    def send_file(self, file, recv_fn=None):
+        self.files.append((file, recv_fn))
+
+    @property
+    def busy(self):
+        return len(self.files) > 0
+
+    def stop(self):
+        if self.running:
+            self.running = False
 
     def run(self):
-        self.connectionSocket.connect((self.host, self.port))
-        rdt = rdt_socket(self.connectionSocket)
-        package = obj_encode(self.file)
-        rdt.sendBytes(package)
-        package_back = rdt.recvBytes()
-        file_back = obj_decode(package_back)
-        print(f"Received file from {self.host}:{self.port}")
-        if self.recv_fn:
-            self.recv_fn(file_back, self.connectionSocket)
-        self.connectionSocket.close()
+        self.running = True
+        connectionSocket = None
+
+        while self.running:
+            if len(self.files) > 0:
+                connectionSocket = socket.socket(AF_INET, SOCK_STREAM)
+                connectionSocket.connect((self.host, self.port))
+                rdt = rdt_socket(connectionSocket)
+                file, recv_fn = self.files.pop(0)
+                # print(f"Sending file to {self.host}:{self.port}")
+                package = obj_encode(file)
+                rdt.sendBytes(package)
+                package_back = rdt.recvBytes()
+                file_back = obj_decode(package_back)
+                # print(f"Received file from {self.host}:{self.port}")
+                if recv_fn:
+                    recv_fn(file_back, connectionSocket)
+            else:
+                time.sleep(0.1)
+        
+        if connectionSocket:
+            connectionSocket.close()
 
 
 class PeerClient(threading.Thread):
