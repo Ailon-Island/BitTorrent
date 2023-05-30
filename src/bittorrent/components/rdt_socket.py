@@ -40,3 +40,5 @@ class rdt_socket(object):
                     body = self.databuf[FILE_HEADER_SIZE:FILE_HEADER_SIZE + body_size]
                     self.databuf = self.databuf[FILE_HEADER_SIZE+body_size:]
                     return body
+            else:
+                print("Waiting for data")

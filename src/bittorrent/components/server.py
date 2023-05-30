@@ -21,23 +21,31 @@ class Server(threading.Thread):
         self.serverSocket = socket.socket(AF_INET, SOCK_STREAM)
         self.serverSocket.bind((host, self.port))
         self.serverSocket.listen(1)
+        self.serverSocket.setblocking(False)
         self.recv_fn = recv_fn
         self.running = False
+        # self.stop_flag = threading.Event()
 
     def run(self):
         self.running = True
+        # while not self.stop_flag.is_set():
         while self.running:
-            connectionSocket, addr = self.serverSocket.accept()
-            rdt = rdt_socket(connectionSocket)
-            package = rdt.recvBytes()
-            file = obj_decode(package)
-            if self.recv_fn:
-                response = self.recv_fn(file, connectionSocket)
-                package_back = obj_encode(response)
-                rdt.sendBytes(package_back)
-
-    def stop(self):
-        self.running = False
-
-    def __del__(self):
+            try:
+                connectionSocket, addr = self.serverSocket.accept()
+                rdt = rdt_socket(connectionSocket)
+                package = rdt.recvBytes()
+                file = obj_decode(package)
+                if self.recv_fn:
+                    response = self.recv_fn(file, connectionSocket)
+                    package_back = obj_encode(response)
+                    rdt.sendBytes(package_back)
+            except BlockingIOError:
+                pass
+            except Exception as e:
+                print("Server get exception:", type(e).__name__)
+        
         self.serverSocket.close()
+                
+    def stop(self):
+        if self.running:
+            self.running = False

@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import threading
 from socket import *
@@ -11,6 +12,8 @@ class Tracker(threading.Thread):
     def __init__(self, name, base_dir="sandbox/tracker/", host="", port=7889):
         super().__init__()
 
+        self.cmd_lock = threading.Lock()
+        self.cmd_queue = []
         self.name = name
         self.dir = base_dir
         self.log_lock = threading.Lock()
@@ -19,8 +22,18 @@ class Tracker(threading.Thread):
         self.port = port
         self.peers = {}
         self.server = Server(host, port, self.respond)
-
+        self.running = False
         self.log(f'[INIT] Tracker {self.name} is initialized')
+
+    def cmd(self, msg):
+        with self.cmd_lock:
+            self.cmd_queue.append(msg)
+
+    def get_cmd(self):
+        with self.cmd_lock:
+            if len(self.cmd_queue) == 0:
+                return None
+            return self.cmd_queue.pop(0)
 
     @staticmethod
     def init_log(name, base_dir, lock):
@@ -35,17 +48,35 @@ class Tracker(threading.Thread):
                 log_fn(msg, log_file)
 
         return log
+    
+    def stop(self):
+        if self.running:
+            self.running = False
 
     def run(self):
+        self.running = True
+
         self.server.start()
 
         self.log(f'[START] Tracker {self.name} is running on {self.host}:{self.port}')
 
-        while True:
-            cmd = input('Enter command: ')
-            if cmd in ['quit', 'q']:
-                break
+        while self.running:
+            try:
+                cmd_line = self.get_cmd()
+                if cmd_line:
+                    cmd, *args = cmd_line.split()
+                    if cmd in ['quit', 'q']:
+                        self.stop()
+                else:
+                    time.sleep(0.1)
+            except Exception as e:
+                self.log("[ERROR] Tracker get exception:", type(e).__name__)
 
+        self.log('[STOP] Stopping server...')
+        self.server.stop()
+        self.server.join()
+        self.log('[STOP] Server stopped')
+        self.log(f'[STOP] Tracker {self.name} stopped')
     
     def respond(self, request, connectionSocket):
         self.log(f'[REQUEST] Received request: {request}')
@@ -116,3 +147,20 @@ if __name__ == '__main__':
 
     tracker = Tracker(args.name, args.dir, args.host, args.port)
     tracker.start()
+    time.sleep(0.1)
+
+    try:
+        while True:
+            if tracker.running:
+                cmd = input('Please enter command: ')
+                tracker.cmd(cmd)
+                if cmd in ['quit', 'q']:
+                    tracker.join()
+                    break
+            # print(f'[INFO] Tracker stopped: {tracker.stop_flag.is_set()}')
+    except KeyboardInterrupt:
+        print('\n[STOP] Keyboard Interrupt, stopping tracker...')
+        tracker.stop()
+        tracker.join()
+            
+    print('[INFO] Program exited')

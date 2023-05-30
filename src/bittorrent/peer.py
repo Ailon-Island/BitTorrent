@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import random
 import threading
@@ -30,6 +31,8 @@ class Peer(threading.Thread):
     def __init__(self, name, base_dir="sandbox/peer/1/", host="", port=7889, pieceManager=None):
         super().__init__()
 
+        self.cmd_lock = threading.Lock()
+        self.cmd_queue = []
         self.name = name
         self.base_dir = base_dir
         self.log_lock = threading.Lock()
@@ -46,6 +49,16 @@ class Peer(threading.Thread):
         self.running = False
 
         self.log(f'[INIT] Peer {self.name} is initialized')
+
+    def cmd(self, msg):
+        with self.cmd_lock:
+            self.cmd_queue.append(msg)
+
+    def get_cmd(self):
+        with self.cmd_lock:
+            if len(self.cmd_queue) == 0:
+                return None
+            return self.cmd_queue.pop(0)
 
     @staticmethod
     def init_log(name, base_dir, lock):
@@ -69,28 +82,40 @@ class Peer(threading.Thread):
         self.log(f'[START] Peer {self.name} is running on {self.host}:{self.port}')
 
         while self.running:
-            line = input("Please enter a command: ")
-            cmd, *args = line.split(' ')
-            if self.online:
-                if cmd in ['leave', 'l']:
-                    self.leave_network()
-                elif cmd in ['get', 'g']:
-                    self.download(args[0])
-                elif cmd in ['file', 'f']:
-                    for file in args:
-                        self.pieceManager.add_file(file)
-                # elif cmd in ['directory', 'dir']:
-                #     for d in args:
-                #         self.pieceManager.add_directory(d)
-                elif cmd in ['quit', 'q']:
-                    self.quit()
-            else:
-                if cmd in ['join', 'j']:
-                    self.join_network(args[0])
-                    continue
+            cmd_line = self.get_cmd()
+            if cmd_line:
+                cmd, *args = cmd_line.split(' ')
+                if self.online:
+                    if cmd in ['leave', 'l']:
+                        self.leave_network()
+                    elif cmd in ['get', 'g']:
+                        self.download(args[0])
+                    elif cmd in ['file', 'f']:
+                        for file in args:
+                            self.pieceManager.add_file(file)
+                    # elif cmd in ['directory', 'dir']:
+                    #     for d in args:
+                    #         self.pieceManager.add_directory(d)
+                    elif cmd in ['quit', 'q']:
+                        self.quit()
+                else:
+                    if cmd in ['join', 'j']:
+                        self.join_network(args[0])
+                        continue
 
-                if len(self.peerConnections) == 0:
-                    break
+                    if len(self.peerConnections) == 0:
+                        break
+            else:
+                time.sleep(0.1)
+
+        if self.online:
+            self.log('[STOP] Leaving network...')
+            self.leave_network()
+        self.log('[STOP] Stopping server...')
+        self.server.stop()
+        self.server.join()
+        self.log('[STOP] Server stopped')
+        self.log(f'[STOP] Peer {self.name} stopped')
 
     def join_network(self, torrent_file):
         if not os.path.exists(os.path.join(self.base_dir, torrent_file)):
@@ -141,9 +166,6 @@ class Peer(threading.Thread):
         self.log(f'[LEAVE] Peer {self.name} has left the network')
 
     def quit(self):
-        if self.online:
-            self.leave_network()
-        self.server.stop()
         self.running = False
 
     def download(self, torrent_file):
@@ -333,3 +355,18 @@ if __name__ == '__main__':
 
     peer = Peer(args.name, args.dir, args.host, args.port)
     peer.start()
+    time.sleep(0.1)
+
+    while True:
+        try:
+            line = input("Please enter command: ")
+            peer.cmd(line)
+            if line in ['quit', 'q']:
+                peer.join()
+                break
+        except KeyboardInterrupt:
+            print('\n[INFO] Keyboard Interrupt')
+            peer.quit()
+            peer.join()
+            break
+
