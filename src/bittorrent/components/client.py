@@ -79,6 +79,7 @@ class PeerClient(threading.Thread):
         """
         Send a file and serve the server's response, round n round
         """
+        self.running = True
         if self.recv_fn is None:
             raise Exception("recv_fn cannot be None for PeerClient!")
 

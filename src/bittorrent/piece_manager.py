@@ -92,9 +92,19 @@ class PieceManager:
         pass
 
     def update_count(self, peer_id, file, index, have):
+        if file not in self.count:
+            self.count[file] = [0] * (index + 1)
+        if index >= len(self.count[file]):
+            self.count[file] += [0] * (index - len(self.count[file]) + 1)
+
         self.count[file][index] += 1 if have else -1
         if (file, index) in self.required_pieces:
             self.rerequire(file, index)
+
+    def update_count_from_bitfield(self, peer_id, peer_bitfield):
+        for file, bitfield in peer_bitfield.items():
+            for index, have in enumerate(bitfield):
+                self.update_count(peer_id, file, index, have)
 
     def read_piece(self, file, index):
         if file not in self.bitfield or not self.bitfield[file][index]:

@@ -41,8 +41,8 @@ class Server(threading.Thread):
                     rdt.sendBytes(package_back)
             except BlockingIOError:
                 pass
-            except Exception as e:
-                print("Server get exception:", type(e).__name__)
+            # except Exception as e:
+            #     print("Server get exception:", type(e).__name__)
         
         self.serverSocket.close()
                 

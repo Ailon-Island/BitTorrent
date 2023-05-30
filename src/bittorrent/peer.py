@@ -1,6 +1,7 @@
 import os
 import time
 import datetime
+import bitarray
 import random
 import threading
 from socket import *
@@ -252,7 +253,7 @@ class Peer(threading.Thread):
         :file:
         :stop:
         """
-        self.log(f'[SERVE] Peer {self.name} received message {message["type"]} from {peer_id}')
+        self.log(f'[SERVE] Peer {self.name} received message {message} from {peer_id}')
 
         if not self.online:
             response = self.make_message("ServerClose")
@@ -260,7 +261,7 @@ class Peer(threading.Thread):
             return response, True
 
         # deal with the message
-        type = message['type']
+        type = message['type'] if 'type' in message else None
         stop = False
         if type == "Choke":
             states['recv']['choke'] = True
@@ -273,6 +274,9 @@ class Peer(threading.Thread):
         elif type == "Have":
             states['peer_bitfield'][message['file']][message['index']] = message['have']
             self.pieceManager.update_count(peer_id, message['file'], message['index'], message['have'])
+        elif type == "Bitfield":
+            states['peer_bitfield'] = {k: bitarray.bitarray(bf) for k, bf in message['bitfield'].items()}
+            self.pieceManager.update_count_from_bitfield(peer_id, states['peer_bitfield'])
         elif type == "Request":
             pass
         elif type == "Piece":
@@ -281,6 +285,8 @@ class Peer(threading.Thread):
             states['piece_request'] = None
         elif type == "ServerClose":
             self.peerConnections.pop(peer_id)
+        elif message['len'] == 0: # keep alive
+            pass
         else:
             raise Exception(f'Invalid message type {type}')
 
@@ -319,7 +325,8 @@ class Peer(threading.Thread):
     def connected(self, message, connectionSocket):
         self.log(f'[INFO] Peer {self.name} is connected by {message["peer_id"]}')
         connection = PeerClient(message['peer_id'], message['ip'], message['port'], recv_fn=self.serve, states=INIT_STATES)
-        response = self.serve(message, connectionSocket, states=connection.states, new=True)
+        response, _ = self.serve(message['peer_id'], message, connectionSocket, states=connection.states, new=True)
+        self.log(f'[INFO] Peer {self.name} sent message {response} to {message["peer_id"]}')
         connection.set_server(response, socket=connectionSocket)
         connection.start()
         self.peerConnections[message['peer_id']] = connection
@@ -362,7 +369,7 @@ class Peer(threading.Thread):
         elif type == "Bitfield":
             message['len'] = 1 + len(self.pieceManager.bitfield)
             message['id'] = 5
-            message['bitfield'] = self.pieceManager.bitfield
+            message['bitfield'] = {k: bf.tolist() for k, bf in self.pieceManager.bitfield.items()}
         elif type == "Request":
             message['len'] = 13
             message['id'] = 6
