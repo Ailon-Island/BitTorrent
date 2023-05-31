@@ -1,6 +1,7 @@
 import json
 from struct import pack, unpack
 import socket
+import bisect
 
 
 def obj_encode(obj):
@@ -27,3 +28,7 @@ def log_fn(msg, log_file=None):
             f.write(msg + '\n')
 
 
+def insert(seq, keys, item, key):
+    idx = bisect.bisect_left(keys, key)
+    keys.insert(idx, key)  
+    seq.insert(idx, item)

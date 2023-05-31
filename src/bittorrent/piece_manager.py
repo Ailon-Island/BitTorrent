@@ -46,6 +46,7 @@ class PieceManager:
         self.piece_buffer = collections.OrderedDict()
         # self.hashes = {}
         self.required_pieces = []
+        self.required_pieces_count = []
         self.lock = threading.Lock()
 
         self.init()
@@ -143,32 +144,37 @@ class PieceManager:
             return
         
         with self.lock:
-            self.required_pieces.remove((file, index))
-            bisect.insort(self.required_pieces, (file, index), key=lambda p: self.count[p[0]][p[1]])
+            idx = self.required_pieces.index((file, index))
+            self.required_pieces.pop(idx)
+            self.required_pieces_count.pop(idx)
+            insert(self.required_pieces, self.required_pieces_count, (file, index), self.count[file][index])
 
     def require(self, file, index):
         with self.lock:
             if (file, index) not in self.required_pieces:
-                bisect.insort(self.required_pieces, (file, index), key=lambda p: self.count[p[0]][p[1]])
+                insert(self.required_pieces, self.required_pieces_count, (file, index), self.count[file][index])
 
     def require_not(self, file, index):
         with self.lock:
-            self.required_pieces.remove((file, index))
+            idx = self.required_pieces.index((file, index))
+            self.required_pieces.pop(idx)
+            self.required_pieces_count.pop(idx)
 
     def get_piece_request(self, peer_bitfield, piece_request):
         # find the rarest piece for current peer
         pieces = []
         with self.lock:
-            for file, index in self.required_pieces:
+            for idx, (file, index) in enumerate(self.required_pieces):
                 if peer_bitfield[file][index]:
-                    pieces += [(file, index)]
+                    pieces += [(idx, (file, index))]
                     if len(pieces) == 10:
                         break
             
             if len(pieces):
-                piece_request['file'], piece_request['index'] = random.choice(self.required_pieces)
+                idx, (piece_request['file'], piece_request['index']) = random.choice(self.required_pieces)
 
-                self.required_pieces.remove((piece_request['file'], piece_request['index']))
+                self.required_pieces.pop(idx)
+                self.required_pieces_count.pop(idx)
             else:
                 piece_request = None
 

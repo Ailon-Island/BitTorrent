@@ -22,8 +22,7 @@ INIT_STATES = {
     },
     "peer_bitfield": None,
     "piece_request": {
-        "file": None,
-        "index": None,
+        None,
     }
 }
 
@@ -315,6 +314,7 @@ class Peer(threading.Thread):
                 response = self.make_message("UnInterested")
         elif states['recv']['choke'] and not states['recv']['interested']:
             if states['piece_request'] is not None:
+                self.log(f'[INFO] Peer {self.name} is requesting piece {states["piece_request"]} from {peer_id}')
                 self.pieceManager.require(states['piece_request']['file'], states['piece_request']['index'])
             self.pieceManager.get_piece_request(states['peer_bitfield'], states['piece_request'])
             if states['piece_request'] is not None:
