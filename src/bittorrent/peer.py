@@ -21,9 +21,7 @@ INIT_STATES = {
         "interested": False,
     },
     "peer_bitfield": None,
-    "piece_request": {
-        None,
-    }
+    "piece_request": None,
 }
 
 
@@ -331,7 +329,7 @@ class Peer(threading.Thread):
         connection.start()
         self.peerConnections[message['peer_id']] = connection
 
-        return {}
+        return response
 
     def make_request(self, event="started"):
         request = {
