@@ -220,7 +220,7 @@ class Peer(threading.Thread):
 
         self.pieceManager.add_file(torrent=torrent)
 
-        self.log(f'[JOIN] Peer {self.name} is downloading {torrent_file.split("/")[-1].split(".")[:-1].join(".")}')
+        # self.log(f'[JOIN] Peer {self.name} is downloading {torrent_file.split("/")[-1].split(".")[:-1].join(".")}')
 
     def connect_all(self, file, connectionSocket):
         if file['error_code'] != 0:
@@ -250,7 +250,8 @@ class Peer(threading.Thread):
         :file:
         :stop:
         """
-        self.log(f'[SERVE] Peer {self.name} received message {message} from {peer_id}')
+        if message.get('type') != "KeepAlive":
+            self.log(f'[SERVE] Peer {self.name} received message {message} from {peer_id}')
 
         if not self.online:
             response = self.make_message("ServerClose")

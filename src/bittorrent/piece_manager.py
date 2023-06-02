@@ -78,7 +78,7 @@ class PieceManager:
         self.bitfield[file] = bitarray.bitarray(len(torrent.info['pieces']))
         self.bitfield[file].setall(have)
         self.count[file] = [0] * len(torrent.info['pieces'])
-
+        print("add file", file, "have", have)
         if have:
             with open(os.path.join(self.base_dir, file), 'rb') as f:
                 index = 0
@@ -134,6 +134,10 @@ class PieceManager:
         return True
     
     def archive_file(self, file):
+        if file not in self.torrents:
+            return
+        if not hasattr(self.torrents[file], 'pieces'):
+            return
         with open(os.path.join(self.base_dir, file), 'wb') as f:
             for index in range(len(self.torrents[file].pieces)):
                 piece = self.read_piece(file, index)
