@@ -89,7 +89,9 @@ class Peer(threading.Thread):
                 cmd_line = self.get_cmd()
                 if cmd_line:
                     cmd, *args = cmd_line.split(' ')
-                    if cmd in ['join', 'j']:
+                    if cmd in ['bitfield', 'b']:
+                        self.log(f'[INFO] The bitfield of peer {self.name} is {self.pieceManager.bitfield}')
+                    elif cmd in ['join', 'j']:
                         self.join_network(args[0])
                     elif cmd in ['leave', 'l']:
                         self.leave_network()
@@ -279,7 +281,10 @@ class Peer(threading.Thread):
         elif type == "Request":
             pass
         elif type == "Piece":
+            if states['piece_request'] is None or message['file'] != states['piece_request']['file'] or message['index'] != states['piece_request']['index']:
+                pass
             if not self.pieceManager.write_piece(message['file'], message['index'], message['piece']):
+                self.log(f'[ERROR] Peer {self.name} failed to write piece {message["index"]} of file {message["file"]}')
                 self.pieceManager.require(states['piece_request']['file'], states['piece_request']['index'])
             states['piece_request'] = None
         elif type == "ServerClose":

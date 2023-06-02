@@ -37,7 +37,6 @@ class PieceManager:
         """
         self.base_dir = base_dir
         self.pieces_folder = os.path.join(base_dir, ".pieces")
-        self.torrents = {}
         self.piece_len = piece_len
         self.bitfield = {}
         self.torrents = {}
@@ -143,10 +142,8 @@ class PieceManager:
     def archive_file(self, file):
         if file not in self.torrents:
             return
-        if not hasattr(self.torrents[file], 'pieces'):
-            return
         with open(os.path.join(self.base_dir, file), 'wb') as f:
-            for index in range(len(self.torrents[file].pieces)):
+            for index in range(len(self.bitfield[file])):
                 piece = self.read_piece(file, index)
                 f.write(piece)
 
