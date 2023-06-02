@@ -1,6 +1,6 @@
 {
-    "announce": "127.0.0.1",
-    "port": 17889,
+    "announce": "10.0.0.1",
+    "port": 7889,
     "comment": "",
     "info": {
         "name": "text.txt",

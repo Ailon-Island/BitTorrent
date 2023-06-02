@@ -1,6 +1,6 @@
 {
-    "announce": "10.0.0.1",
-    "port": 7889,
+    "announce": "127.0.0.1",
+    "port": 17889,
     "comment": "",
     "info": {
         "name": "\u8ba1\u7f51mininet\u8865\u5145.mp4",

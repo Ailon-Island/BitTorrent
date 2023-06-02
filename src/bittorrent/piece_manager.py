@@ -77,7 +77,10 @@ class PieceManager:
         self.torrents[file] = torrent
         self.bitfield[file] = bitarray.bitarray(len(torrent.info['pieces']))
         self.bitfield[file].setall(have)
-        self.count[file] = [0] * len(torrent.info['pieces'])
+        if file not in self.count:
+            self.count[file] = [0] * len(torrent.info['pieces'])
+        else:
+            self.count[file] += [0] * (len(torrent.info['pieces']) - len(self.count[file]))
         print("add file", file, "have", have)
         if have:
             with open(os.path.join(self.base_dir, file), 'rb') as f:
@@ -88,6 +91,9 @@ class PieceManager:
                         break
                     self.write_piece(file, index, piece)
                     index += 1
+        else:  # not have, download it
+            for index in range(len(torrent.info['pieces'])):
+                self.require(file, index)
 
     def add_directory(self, directory):
         pass
@@ -100,7 +106,7 @@ class PieceManager:
 
         self.count[file][index] += 1 if have else -1
         if (file, index) in self.required_pieces:
-            self.rerequire(file, index)
+            self.require(file, index)
 
     def update_count_from_bitfield(self, peer_id, peer_bitfield):
         for file, bitfield in peer_bitfield.items():
@@ -119,6 +125,7 @@ class PieceManager:
             self.piece_buffer[(file, index)] = piece
             if len(self.piece_buffer) > self.piece_buffer_size:
                 self.piece_buffer.popitem(last=False)
+            return piece
 
     def write_piece(self, file, index, piece):
         if not self.torrents[file].compare_piece(index, piece):
@@ -143,20 +150,13 @@ class PieceManager:
                 piece = self.read_piece(file, index)
                 f.write(piece)
 
-    def rerequire(self, file, index):
-        if (file, index) not in self.required_pieces:
-            return
-        
-        with self.lock:
-            idx = self.required_pieces.index((file, index))
-            self.required_pieces.pop(idx)
-            self.required_pieces_count.pop(idx)
-            insert(self.required_pieces, self.required_pieces_count, (file, index), self.count[file][index])
-
     def require(self, file, index):
         with self.lock:
-            if (file, index) not in self.required_pieces:
-                insert(self.required_pieces, self.required_pieces_count, (file, index), self.count[file][index])
+            if (file, index) in self.required_pieces:
+                idx = self.required_pieces.index((file, index))
+                self.required_pieces.pop(idx)
+                self.required_pieces_count.pop(idx)
+            insert(self.required_pieces, self.required_pieces_count, (file, index), self.count[file][index])
 
     def require_not(self, file, index):
         with self.lock:
@@ -164,7 +164,7 @@ class PieceManager:
             self.required_pieces.pop(idx)
             self.required_pieces_count.pop(idx)
 
-    def get_piece_request(self, peer_bitfield, piece_request):
+    def get_piece_request(self, peer_bitfield):
         # find the rarest piece for current peer
         pieces = []
         with self.lock:
@@ -175,10 +175,13 @@ class PieceManager:
                         break
             
             if len(pieces):
-                idx, (piece_request['file'], piece_request['index']) = random.choice(self.required_pieces)
+                piece_request = {}
+                idx, (piece_request['file'], piece_request['index']) = random.choice(pieces)
 
                 self.required_pieces.pop(idx)
                 self.required_pieces_count.pop(idx)
             else:
                 piece_request = None
+            
+            return piece_request
 

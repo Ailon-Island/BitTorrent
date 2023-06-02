@@ -1,11 +1,13 @@
 {
-    "announce": "10.0.0.1",
-    "port": 7889,
+    "announce": "127.0.0.1",
+    "port": 17889,
     "comment": "",
     "info": {
         "name": "text.txt",
-        "length": 0,
+        "length": 39,
         "piece_length": 4096,
-        "pieces": []
+        "pieces": [
+            "b\"\\x16\\xd7\\xf3\\x03iF\\xb4X\\xeecd\\xe5bs'\\x1d\\xba\\xe4\\x18\\t\""
+        ]
     }
 }

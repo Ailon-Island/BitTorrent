@@ -1,6 +1,7 @@
 import os
 import time
 import datetime
+import struct
 import bitarray
 import random
 import threading
@@ -92,7 +93,7 @@ class Peer(threading.Thread):
                         self.join_network(args[0])
                     elif cmd in ['leave', 'l']:
                         self.leave_network()
-                    elif cmd in ['get', 'g']:
+                    elif cmd in ['get', 'g', 'download', 'd']:
                         self.download(args[0])
                     elif cmd in ['file', 'f']:
                         for file in args:
@@ -304,19 +305,20 @@ class Peer(threading.Thread):
         elif type == "Request" and not states['send']['choke'] and states['send']['interested']:
             piece = self.pieceManager.read_piece(message['file'], message['index'])
             response = self.make_message("Piece", file=message['file'], index=message['index'], piece=piece)
-        elif not states['recv']['choke'] and states['recv']['interested']:
+        elif not states['recv']['choke'] and states['recv']['interested']:  # peer unchoke, my interested
             if states['piece_request'] is None:
-                self.pieceManager.get_piece_request(states['peer_bitfield'], states['piece_request'])
+                states['piece_request'] = self.pieceManager.get_piece_request(states['peer_bitfield'])
             if states['piece_request'] is not None:
                 response = self.make_message("Request", file=states['piece_request']['file'], index=states['piece_request']['index'])
             else:
                 response = self.make_message("UnInterested")
-        elif states['recv']['choke'] and not states['recv']['interested']:
+        elif states['recv']['choke'] and not states['recv']['interested']:  # peer choke, my uninterested
+            if states['piece_request'] is not None:
+                self.pieceManager.require(states['piece_request']['file'], states['piece_request']['index'])
+            states['piece_request'] = self.pieceManager.get_piece_request(states['peer_bitfield'])
             if states['piece_request'] is not None:
                 self.log(f'[INFO] Peer {self.name} is requesting piece {states["piece_request"]} from {peer_id}')
-                self.pieceManager.require(states['piece_request']['file'], states['piece_request']['index'])
-            self.pieceManager.get_piece_request(states['peer_bitfield'], states['piece_request'])
-            if states['piece_request'] is not None:
+                states['recv']['interested'] = True
                 response = self.make_message("Interested")
 
         return response, stop
