@@ -68,7 +68,7 @@ class Torrent:
     def write_torrent(self, dir=None, announce=None, port=None, comment=None):
         # record the torrent file information
         dir = dir or os.getcwd()
-        torrent_file = os.path.join(dir, self.info['name'].split('.')[-2] + '.torrent')
+        torrent_file = os.path.join(dir, self.info['name'] + '.torrent')
         torrent = self.torrent
         torrent['announce'] = announce or self.announce
         torrent['port'] = port or self.port
@@ -116,6 +116,6 @@ class Torrent:
 if __name__ == "__main__":
     torrent=Torrent()
     download_file = 'test.txt'
-    torrent_file_name = 'test.torrent'
+    torrent_file_name = 'test.txt.torrent'
     torrent.make_torrent(download_file, download_file, '.')
     print(torrent.compare_file(download_file))
