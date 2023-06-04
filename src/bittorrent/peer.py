@@ -333,9 +333,6 @@ class Peer(threading.Thread):
             if states['piece_request'] is not None:
                 states['recv']['interested'] = True
                 response = self.make_message("Interested")
-        
-        if message.get('type') != "KeepAlive":
-            self.log(f'[SERVE] Peer connection from {self.name} to {peer_id} states: {states}')
 
         return response, stop
 
