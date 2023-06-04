@@ -1,6 +1,7 @@
 import os
 import time
 import datetime
+import copy
 import struct
 import bitarray
 import random
@@ -100,6 +101,8 @@ class Peer(threading.Thread):
                     elif cmd in ['file', 'f']:
                         for file in args:
                             self.pieceManager.add_file(file)
+                    elif cmd in ['remaining', 'r']:
+                        self.log(f'[INFO] The remaining pieces of peer {self.name} is {self.pieceManager.required_pieces}')
                     # elif cmd in ['directory', 'dir']:
                     #     for d in args:
                     #         self.pieceManager.add_directory(d)
@@ -218,6 +221,8 @@ class Peer(threading.Thread):
             self.log(f'[ERROR] Torrent file {torrent_file} does not exist')
             return
 
+        self.log(f'[DOWN] Peer {self.name} is downloading with torrent {torrent_file}...')
+
         torrent = Torrent()
         torrent.read_torrent(os.path.join(self.base_dir, torrent_file))
 
@@ -232,10 +237,10 @@ class Peer(threading.Thread):
         self.log(f'[INFO] Peer {self.name} is connecting to {file["num-of-peers"]} peers')
         message = self.make_message("Bitfield")
         for peer in file['peers'].values():
-            message['ip'] = peer['ip']
-            message['port'] = peer['port']
-            message['peer_id'] = peer['peer_id']
-            connection = PeerClient(peer['peer_id'], peer['ip'], peer['port'], recv_fn=self.serve, states=INIT_STATES)
+            message['ip'] = self.host
+            message['port'] = self.port
+            message['peer_id'] = f'{self.name}:{self.port}'
+            connection = PeerClient(peer['peer_id'], peer['ip'], peer['port'], recv_fn=self.serve, states=copy.deepcopy(INIT_STATES))
             connection.set_server(message)
             connection.start()
             self.peerConnections[peer['peer_id']] = connection
@@ -270,6 +275,7 @@ class Peer(threading.Thread):
         elif type == "UnChoke":
             states['recv']['choke'] = False
         elif type == "Interested":
+            self.log(f'[INFO] Peer {self.name} received interested message from {peer_id}')
             states['send']['interested'] = True
         elif type == "UnInterested":
             states['send']['interested'] = False
@@ -315,23 +321,27 @@ class Peer(threading.Thread):
             if states['piece_request'] is None:
                 states['piece_request'] = self.pieceManager.get_piece_request(states['peer_bitfield'])
             if states['piece_request'] is not None:
+                self.log(f'[INFO] Peer {self.name} is requesting piece {states["piece_request"]} from {peer_id}')
                 response = self.make_message("Request", file=states['piece_request']['file'], index=states['piece_request']['index'])
             else:
+                states['recv']['interested'] = False
                 response = self.make_message("UnInterested")
         elif states['recv']['choke'] and not states['recv']['interested']:  # peer choke, my uninterested
             if states['piece_request'] is not None:
                 self.pieceManager.require(states['piece_request']['file'], states['piece_request']['index'])
             states['piece_request'] = self.pieceManager.get_piece_request(states['peer_bitfield'])
             if states['piece_request'] is not None:
-                self.log(f'[INFO] Peer {self.name} is requesting piece {states["piece_request"]} from {peer_id}')
                 states['recv']['interested'] = True
                 response = self.make_message("Interested")
+        
+        if message.get('type') != "KeepAlive":
+            self.log(f'[SERVE] Peer connection from {self.name} to {peer_id} states: {states}')
 
         return response, stop
 
     def connected(self, message, connectionSocket):
         self.log(f'[INFO] Peer {self.name} is connected by {message["peer_id"]}')
-        connection = PeerClient(message['peer_id'], message['ip'], message['port'], recv_fn=self.serve, states=INIT_STATES)
+        connection = PeerClient(message['peer_id'], message['ip'], message['port'], recv_fn=self.serve, states=copy.deepcopy(INIT_STATES))
         response, _ = self.serve(message['peer_id'], message, connectionSocket, states=connection.states, new=True)
         self.log(f'[INFO] Peer {self.name} sent message {response} to {message["peer_id"]}')
         connection.set_server(response, socket=connectionSocket)
