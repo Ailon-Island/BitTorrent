@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import json
+import base64
 from struct import pack, unpack
 import socket
 import bisect
@@ -9,7 +10,7 @@ from typing import Any
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, bytes):
-            return "BYTES" + obj.decode('utf-8')
+            return "BYTES" + base64.b64encode(obj).decode('utf-8')
         return json.JSONEncoder.default(self, obj)
     
 
@@ -21,7 +22,7 @@ class MyDecoder(json.JSONDecoder):
         for key, value in dct.items():
             if isinstance(value, str) and value.startswith('BYTES'):
                 try:
-                    dct[key] = value[5:].encode('utf-8')
+                    dct[key] = base64.b64decode(value[5:])
                 except UnicodeEncodeError:
                     pass 
         return dct

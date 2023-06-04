@@ -51,11 +51,11 @@ def main():
     # python src/bittorrent/peer.py -N p3 -D sandbox/peer/3/ -H 10.0.0.4 -P 7890
 
     
-    # python src/bittorrent/tracker.py -N tracker -D sandbox/tracker/ -H 127.0.0.1 -P 17889
+    # clear && python src/bittorrent/tracker.py -N tracker -D sandbox/tracker/ -H 127.0.0.1 -P 17889
 
-    # python src/bittorrent/peer.py -N p1 -D sandbox/peer/1/ -H 127.0.0.1 -P 17991
-    # python src/bittorrent/peer.py -N p2 -D sandbox/peer/2/ -H 127.0.0.1 -P 17992
-    # python src/bittorrent/peer.py -N p3 -D sandbox/peer/3/ -H 127.0.0.1 -P 17993
+    # clear && python src/bittorrent/peer.py -N p1 -D sandbox/peer/1/ -H 127.0.0.1 -P 17991
+    # clear && python src/bittorrent/peer.py -N p2 -D sandbox/peer/2/ -H 127.0.0.1 -P 17992
+    # clear && python src/bittorrent/peer.py -N p3 -D sandbox/peer/3/ -H 127.0.0.1 -P 17993
 
     # BitTorrent download
     p1.cmd(f'd sandbox/peer/1/.torrents/text.torrent')

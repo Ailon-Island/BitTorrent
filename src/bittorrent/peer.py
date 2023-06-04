@@ -254,7 +254,8 @@ class Peer(threading.Thread):
         :stop:
         """
         if message.get('type') != "KeepAlive":
-            self.log(f'[SERVE] Peer {self.name} received message {message} from {peer_id}')
+            message4log = {k: v for k, v in message.items() if k not in ["piece"]}
+            self.log(f'[SERVE] Peer {self.name} received message {message4log} from {peer_id}')
 
         if not self.online:
             response = self.make_message("ServerClose")

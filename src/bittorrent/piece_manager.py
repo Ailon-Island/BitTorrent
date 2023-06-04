@@ -80,7 +80,6 @@ class PieceManager:
             self.count[file] = [0] * len(torrent.info['pieces'])
         else:
             self.count[file] += [0] * (len(torrent.info['pieces']) - len(self.count[file]))
-        print("add file", file, "have", have)
         if have:
             with open(os.path.join(self.base_dir, file), 'rb') as f:
                 index = 0
@@ -88,7 +87,7 @@ class PieceManager:
                     piece = f.read(self.piece_len)
                     if not piece:
                         break
-                    self.write_piece(file, index, piece)
+                    self.write_piece(file, index, piece, archive_check=False)
                     index += 1
         else:  # not have, download it
             for index in range(len(torrent.info['pieces'])):
@@ -126,7 +125,7 @@ class PieceManager:
                 self.piece_buffer.popitem(last=False)
             return piece
 
-    def write_piece(self, file, index, piece):
+    def write_piece(self, file, index, piece, archive_check=True):
         if not self.torrents[file].compare_piece(index, piece):
             return False
 
@@ -134,7 +133,7 @@ class PieceManager:
             f.write(piece)
         self.bitfield[file][index] = True
         
-        if self.bitfield[file].all():
+        if archive_check and self.bitfield[file].all():
             self.archive_file(file)
 
         return True
